@@ -4,9 +4,8 @@
 #include <ctype.h>
 
 #define MAX_LINHA 4096
-#define MAX_PERFUMES 300 
-#define MAX_RESP 4096    
-
+#define MAX_PERFUMES 500
+#define MAX_RESP 20000
 // --- ESTRUTURA DO PERFUME ---
 typedef struct {
     char nome[100];
@@ -269,3 +268,4 @@ void interagir_arvore(char* caminho_usuario, char* resposta) {
         sprintf(resposta, "PERGUNTA:%s", atual->texto);
     }
 }
+
