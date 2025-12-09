@@ -3,9 +3,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 
-// --- AUMENTO DE MEMÓRIA PARA EVITAR CORTES NA LISTA ---
 #define MAX_LINHA 4096
-#define MAX_PERFUMES 500  
+#define MAX_PERFUMES 600  
 #define MAX_RESP 20000    
 
 // --- ESTRUTURA DO PERFUME ---
@@ -37,21 +36,14 @@ typedef struct No {
 
 No *raiz = NULL;
 
-// --- FUNÇÕES DE LIMPEZA (CRITICAS) ---
+// --- FUNÇÕES AUXILIARES ---
 
-// Remove espaços do começo e do fim (ex: " Floral " vira "Floral")
 void trim(char *str) {
     if (!str) return;
     char *ptr = str;
     int len = strlen(ptr);
-
-    // Remove do final
     while (len > 0 && isspace(ptr[len - 1])) ptr[--len] = 0;
-
-    // Remove do começo
     while (*ptr && isspace(*ptr)) ptr++, len--;
-
-    // Move o texto limpo para o início
     memmove(str, ptr, len + 1);
 }
 
@@ -59,73 +51,56 @@ void limpar_string(char *str) {
     if (!str) return;
     str[strcspn(str, "\n")] = 0;
     str[strcspn(str, "\r")] = 0;
-    
-    // Remove aspas
-    if (str[0] == '"') {
-        memmove(str, str + 1, strlen(str)); 
-    }
+    if (str[0] == '"') memmove(str, str + 1, strlen(str)); 
     int len = strlen(str);
-    if (len > 0 && str[len-1] == '"') {
-        str[len-1] = '\0'; 
-    }
-    
-    // Aplica o trim final
+    if (len > 0 && str[len-1] == '"') str[len-1] = '\0'; 
     trim(str);
 }
 
-// --- CARREGAMENTO ROBUSTO ---
+// COMPARAÇÃO INTELIGENTE (Ignora maiúsculas e parciais)
+int contem_ignora_case(const char* texto_base, const char* busca) {
+    if (!texto_base || !busca) return 0;
+    char base_temp[200];
+    char busca_temp[200];
+    strncpy(base_temp, texto_base, 199); base_temp[199] = '\0';
+    strncpy(busca_temp, busca, 199); busca_temp[199] = '\0';
+    for(int i = 0; base_temp[i]; i++) base_temp[i] = tolower(base_temp[i]);
+    for(int i = 0; busca_temp[i]; i++) busca_temp[i] = tolower(busca_temp[i]);
+    if (strstr(base_temp, busca_temp) != NULL) return 1;
+    return 0;
+}
+
+// --- CARREGAMENTO ---
 void carregar_csv(char* nome_arquivo, char* genero_fixo) {
     FILE *arquivo = fopen(nome_arquivo, "r");
     if (!arquivo) {
-        printf("[ERRO] Nao foi possivel abrir o arquivo: %s\n", nome_arquivo);
+        printf("[ERRO] Nao abriu %s\n", nome_arquivo);
         return;
     }
 
     char linha[MAX_LINHA];
-    // Pula cabeçalho
-    fgets(linha, sizeof(linha), arquivo);
+    fgets(linha, sizeof(linha), arquivo); 
 
     while (fgets(linha, sizeof(linha), arquivo) && total_perfumes < MAX_PERFUMES) {
         linha[strcspn(linha, "\n")] = 0;
 
-        // 1. NOME
         char *t = strtok(linha, ","); 
         if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].nome, t); }
 
-        // 2. LINHA (Ignorar)
+        strtok(NULL, ","); 
+        strtok(NULL, ","); 
+        strcpy(catalogo[total_perfumes].genero, genero_fixo); 
+        
         strtok(NULL, ","); 
         
-        // 3. GENERO (Força o fixo)
-        strtok(NULL, ","); 
-        strcpy(catalogo[total_perfumes].genero, genero_fixo);
-        
-        // 4. FAMILIA (Ignorar)
-        strtok(NULL, ","); 
-        
-        // 5. PERIODO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].periodo, t); }
-        // 6. OCASIAO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].ocasiao, t); }
-        // 7. ESTILO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].estilo, t); }
-        // 8. ESTACAO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].estacao, t); }
-        // 9. ORCAMENTO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].orcamento, t); }
-        // 10. INTENSIDADE
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].intensidade, t); }
-        // 11. PRECO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].preco, t); }
-        // 12. LINK
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].link, t); }
-
-        // --- DIAGNÓSTICO DE DESALINHAMENTO ---
-        // Se o preço não tiver ponto nem for vazio, ou link não tiver http, avisa no terminal
-        if (strlen(catalogo[total_perfumes].preco) > 0 && strchr(catalogo[total_perfumes].preco, '.') == NULL && strstr(catalogo[total_perfumes].preco, "R$") == NULL) {
-             // Aceita R$ ou ponto decimal. Se não tiver nenhum, pode estar errado.
-             // printf("[ALERTA] Linha suspeita no %s (Perfume: %s). Preco lido: '%s'\n", nome_arquivo, catalogo[total_perfumes].nome, catalogo[total_perfumes].preco);
-        }
-        // -------------------------------------
 
         catalogo[total_perfumes].ativo = 1; 
         total_perfumes++;
@@ -146,26 +121,26 @@ void aplicar_filtro(char* tipo, char* valor) {
             if (strcmp(catalogo[i].genero, valor) == 0) manter = 1;
         }
         else if (strcmp(tipo, "ESTILO") == 0) {
-            if (strstr(catalogo[i].estilo, valor) != NULL) manter = 1;
+            if (contem_ignora_case(catalogo[i].estilo, valor)) manter = 1;
         }
         else if (strcmp(tipo, "OCASIAO") == 0) {
-            if (strstr(catalogo[i].ocasiao, valor) != NULL) manter = 1;
+            if (contem_ignora_case(catalogo[i].ocasiao, valor)) manter = 1;
         }
         else if (strcmp(tipo, "ESTACAO") == 0) {
-            if (strstr(catalogo[i].estacao, valor) != NULL) manter = 1;
+            if (contem_ignora_case(catalogo[i].estacao, valor)) manter = 1;
         }
         else if (strcmp(tipo, "ORCAMENTO") == 0) {
-            if (strstr(catalogo[i].orcamento, valor) != NULL) manter = 1;
+            if (contem_ignora_case(catalogo[i].orcamento, valor)) manter = 1;
         }
         else if (strcmp(tipo, "PERIODO") == 0) {
-            if (strstr(catalogo[i].periodo, valor) != NULL) manter = 1;
+            if (contem_ignora_case(catalogo[i].periodo, valor)) manter = 1;
         }
         
         catalogo[i].ativo = manter;
     }
 }
 
-// --- FUNÇÕES DA ÁRVORE ---
+// --- ARVORE ---
 No* criar_no(char* texto, char* tipo, char* valor, No* sim, No* nao) {
     No* novo = (No*)malloc(sizeof(No));
     strcpy(novo->texto, texto);
@@ -179,24 +154,24 @@ No* criar_no(char* texto, char* tipo, char* valor, No* sim, No* nao) {
 void inicializar_arvore() {
     total_perfumes = 0;
     
-    // Passamos o Gênero Fixo para garantir a filtragem correta
     carregar_csv("perfumes_masculinos.csv", "M"); 
     carregar_csv("perfumes_femininos.csv", "F");
 
     No* fim = criar_no("FIM", "NENHUM", "", NULL, NULL);
 
-    // --- RAMOS DE PERGUNTAS ---
+    // --- CORREÇÃO DAS PALAVRAS CHAVE ---
+    // Usamos "Verão" (pega "Primavera / Verão" e "Verão / primavera")
+    // Usamos "Todas" (pega "Todas as estações" e "Todas estações")
+    
+    No* p_estacao_2 = criar_no("Prefere algo para um clima mais quente ?", "ESTACAO", "Verão", fim, fim);
+    No* p_estacao_1 = criar_no("Prefere algo versatil para todas as estacoes ?", "ESTACAO", "Todas", fim, p_estacao_2);
 
-    // Estação
-    No* p_estacao_2 = criar_no("Prefere algo para um clima mais quente ?", "ESTACAO", "Primavera / Verão", fim, fim);
-    No* p_estacao_1 = criar_no("Prefere algo versatil para todas as estacoes ?", "ESTACAO", "Todas as estações", fim, p_estacao_2);
-
-    // Periodo
     No* p_periodo_2 = criar_no("Gostaria de um perfume para usar de Dia ?", "PERIODO", "Dia", p_estacao_1, p_estacao_1);
     No* p_periodo = criar_no("Gostaria de um perfume para qualquer periodo (Versatil) ?", "PERIODO", "Versatil", p_estacao_1, p_periodo_2);
 
-    // Orçamento
-    No* p_orcamento = criar_no("Seu orcamento é maior que R$ 200,00 ?", "ORCAMENTO", "maior que 200", p_periodo, p_periodo);
+    // Removemos "menor que" da busca, buscamos só "200" se possível, 
+    // mas "menor que 200" costuma funcionar se o CSV estiver limpo.
+    No* p_orcamento = criar_no("Seu orcamento é maior que R$ 200,00 ?", "ORCAMENTO", "maior", p_periodo, p_periodo);
 
     // --- RAMO MASCULINO ---
     No* m_estilo_14 = criar_no("Gostaria de algo mais Atraente ?", "ESTILO", "Misterioso", p_orcamento, p_orcamento);
@@ -225,7 +200,6 @@ void inicializar_arvore() {
     No* f_estilo_2 = criar_no("Gostaria de um estilo Sensual ?", "ESTILO", "Sensual", p_orcamento, f_estilo_3);
     No* f_estilo_1 = criar_no("Gostaria de um estilo Delicado ?", "ESTILO", "Delicada", p_orcamento, f_estilo_2);
 
-    // --- RAIZ ---
     raiz = criar_no("O perfume é para o Genero Feminino ?", "GENERO", "F", f_estilo_1, m_estilo_1);
 }
 
@@ -235,13 +209,11 @@ void resetar_catalogo() {
     }
 }
 
-//Função que faz a interação com o código em python
 void interagir_arvore(char* caminho_usuario, char* resposta) {
     if (raiz == NULL) inicializar_arvore();
 
-    // --- DIAGNÓSTICO (DEDO-DURO) ---
     if (total_perfumes == 0) {
-        sprintf(resposta, "RESULTADO:ERRO CRITICO - Backend C nao carregou nenhum perfume. Verifique se os arquivos .csv estao na pasta correta.");
+        sprintf(resposta, "RESULTADO:ERRO - Nenhum perfume carregado. Verifique o caminho dos CSVs.");
         return;
     }
 
@@ -263,25 +235,22 @@ void interagir_arvore(char* caminho_usuario, char* resposta) {
             aplicar_filtro(atual->tipo_filtro, atual->valor_filtro);
             if (atual->sim) atual = atual->sim;
         } else {
-            // Lógica do NÃO
             if (strcmp(atual->tipo_filtro, "GENERO") == 0) aplicar_filtro("GENERO", "M");
-            else if (strcmp(atual->tipo_filtro, "ORCAMENTO") == 0) aplicar_filtro("ORCAMENTO", "menor que 200");
+            else if (strcmp(atual->tipo_filtro, "ORCAMENTO") == 0) aplicar_filtro("ORCAMENTO", "menor"); // Busca "menor"
             
             if (atual->nao) atual = atual->nao;
         }
     }
 
     if (strcmp(atual->texto, "FIM") == 0 || (atual->sim == NULL && atual->nao == NULL)) {
-        char buffer_lista[MAX_RESP] = ""; // Usando o buffer aumentado de 20KB
+        char buffer_lista[MAX_RESP] = "";
         int cont = 0;
 
         for(int i=0; i < total_perfumes; i++) {
             if (catalogo[i].ativo == 1) {
                 char item[300];
-                // Formatação: Nome - Preço || Link (O Python vai quebrar no ||)
-                sprintf(item, "%s - %s|| %s \n", catalogo[i].nome, catalogo[i].preco, catalogo[i].link);
+                sprintf(item, "%s - R$ %s|| %s \n", catalogo[i].nome, catalogo[i].preco, catalogo[i].link);
                 
-                // Verifica se cabe no buffer gigante
                 if (strlen(buffer_lista) + strlen(item) < MAX_RESP - 100) {
                     strcat(buffer_lista, item);
                     cont++;
@@ -289,9 +258,8 @@ void interagir_arvore(char* caminho_usuario, char* resposta) {
             }
         }
 
-        if (cont == 0) sprintf(resposta, "RESULTADO:Nenhum perfume encontrado com estes filtros.");
+        if (cont == 0) sprintf(resposta, "RESULTADO:Nenhum perfume encontrado.");
         else {
-            // Cuidado: 'final' também precisa ser grande
             char *final = (char*)malloc(MAX_RESP + 1000); 
             if (final) {
                 sprintf(final, "RESULTADO:Encontramos %d opcoes:\n%s", cont, buffer_lista);
