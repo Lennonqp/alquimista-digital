@@ -38,83 +38,69 @@ No *raiz = NULL;
 
 // --- FUNÇÃO LIMPEZA ---
 void limpar_string(char *str) {
-    // 1) Se a string for NULL, não há nada a limpar.
     if (!str) return;
-     // 2) Remover quebra de linha: substitui '\n' e '\r' por '\0'.
-    //    strcspn encontra o índice do primeiro desses caracteres.
     str[strcspn(str, "\n")] = 0;
     str[strcspn(str, "\r")] = 0;
     
-      // 3) Se a string começar com aspas, deslocamos o texto para a esquerda.
-    //    Isso remove a aspas inicial.
     if (str[0] == '"') {
         memmove(str, str + 1, strlen(str)); 
     }
-     // 4) Verificar e remover aspas no final.
     int len = strlen(str);
     if (len > 0 && str[len-1] == '"') {
         str[len-1] = '\0'; 
     }
 }
 
-
-void carregar_csv(char* nome_arquivo) {
-    FILE *arquivo = fopen(nome_arquivo, "r"); // Abre o arquivo em modo leitura ("r")
-    if (!arquivo) {  // Caso o arquivo não abra
-        printf("Erro ao abrir arquivo: %s\n", nome_arquivo); // Exibe mensagem de erro
-        return; // Encerra a função caso não consiga abrir o arquivo
+// --- CARREGAMENTO (AGORA COM GÊNERO FIXO) ---
+// Alteramos para receber 'genero_fixo' para garantir que seja "M" ou "F"
+void carregar_csv(char* nome_arquivo, char* genero_fixo) {
+    FILE *arquivo = fopen(nome_arquivo, "r");
+    if (!arquivo) {
+        printf("Erro ao abrir arquivo: %s\n", nome_arquivo);
+        return;
     }
 
     char linha[MAX_LINHA];
     // Pula cabeçalho
     fgets(linha, sizeof(linha), arquivo);
 
-    while (fgets(linha, sizeof(linha), arquivo) && total_perfumes < MAX_PERFUMES) { // o fgets pega uma linha do arquivo para o buffer 'linha' e verifica se ainda há espaço no catálogo.
-    //'total_perfumes' precisa ser menor do que 'MAX_PERFUMES', evitando ultrapassar o limite do vetor
-        
-    // Limpa o \n final da linha bruta
+    while (fgets(linha, sizeof(linha), arquivo) && total_perfumes < MAX_PERFUMES) {
+        // Limpa o \n final
         linha[strcspn(linha, "\n")] = 0;
 
-        // 1. COLUNA: NOME
-        char *t = strtok(linha, ","); //declara um ponteiro, e strtok é uma função que divide uma string em substrings usando caracteres separadores
-        if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].nome, t); } //limpar: Remove espaços extras //strcpy: Copia o conteúdo da string 't' para o campo 'nome' do perfume no catálogo
+        // 1. NOME
+        char *t = strtok(linha, ","); 
+        if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].nome, t); }
 
-        // 2. COLUNA: LINHA (Ignorar, mas precisamos ler para passar o cursor)
-        t = strtok(NULL, ","); 
+        // 2. LINHA (Ignorar)
+        strtok(NULL, ","); 
         
-        // 3. COLUNA: GENERO
-        t = strtok(NULL, ",");
-        if(t) { 
-            limpar_string(t); 
-            strcpy(catalogo[total_perfumes].genero, t);
-        }
+        // 3. GENERO (Ignoramos o do arquivo e forçamos o fixo)
+        strtok(NULL, ","); // Consome o token para avançar a leitura
+        strcpy(catalogo[total_perfumes].genero, genero_fixo); // <--- AQUI ESTÁ A SEGURANÇA
         
-       
+        // 4. FAMILIA (Ignorar)
+        strtok(NULL, ","); 
         
-        strtok(NULL, ","); // Pula Familia Olfativa 
-        
-        
-        // A partir daqui, ambos os arquivos estão alinhados na coluna PERIODO
-        
-        // 4. PERIODO
+        // 5. PERIODO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].periodo, t); }
-        // 5. OCASIAO
+        // 6. OCASIAO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].ocasiao, t); }
-        // 6. ESTILO
+        // 7. ESTILO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].estilo, t); }
-        // 7. ESTACAO
+        // 8. ESTACAO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].estacao, t); }
-        // 8. ORCAMENTO
+        // 9. ORCAMENTO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].orcamento, t); }
-        // 9. INTENSIDADE
+        // 10. INTENSIDADE
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].intensidade, t); }
-        // PRECO
+        // 11. PRECO
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].preco, t); }
-        // LINK
+        // 12. LINK
         t = strtok(NULL, ","); if(t) { limpar_string(t); strcpy(catalogo[total_perfumes].link, t); }
 
-        catalogo[total_perfumes].ativo = 1; // Marca o perfume atual como ativo no catálogo (1 = ativo)
-        total_perfumes++; // Avança o índice para o próximo perfume a ser inserido
+        catalogo[total_perfumes].ativo = 1; 
+        total_perfumes++;
     }
     fclose(arquivo);
 }
@@ -129,7 +115,6 @@ void aplicar_filtro(char* tipo, char* valor) {
         int manter = 0; 
 
         if (strcmp(tipo, "GENERO") == 0) {
-            // Comparação exata
             if (strcmp(catalogo[i].genero, valor) == 0) manter = 1;
         }
         else if (strcmp(tipo, "ESTILO") == 0) {
@@ -166,8 +151,9 @@ No* criar_no(char* texto, char* tipo, char* valor, No* sim, No* nao) {
 void inicializar_arvore() {
     total_perfumes = 0;
     
-    carregar_csv("perfumes_masculinos.csv"); 
-    carregar_csv("perfumes_femininos.csv");
+    // Passamos o Gênero Fixo para evitar erros de digitação no CSV
+    carregar_csv("perfumes_masculinos.csv", "M"); 
+    carregar_csv("perfumes_femininos.csv", "F");
 
     No* fim = criar_no("FIM", "NENHUM", "", NULL, NULL);
 
@@ -214,7 +200,7 @@ void inicializar_arvore() {
     // --- RAIZ ---
     raiz = criar_no("O perfume é para o Genero Feminino ?", "GENERO", "F", f_estilo_1, m_estilo_1);
 }
-// Transforma toda a lista de perfumes em 1 novamente
+
 void resetar_catalogo() {
     for(int i=0; i < total_perfumes; i++) {
         catalogo[i].ativo = 1;
@@ -225,33 +211,37 @@ void resetar_catalogo() {
 void interagir_arvore(char* caminho_usuario, char* resposta) {
     if (raiz == NULL) inicializar_arvore();
 
+    // --- DIAGNÓSTICO DE ARQUIVO (ESSENCIAL PARA RENDER) ---
+    if (total_perfumes == 0) {
+        sprintf(resposta, "RESULTADO:ERRO CRITICO - Arquivos CSV nao carregados. Verifique se estao na mesma pasta do script.");
+        return;
+    }
+
     if (strlen(caminho_usuario) == 0) {
         resetar_catalogo();
         sprintf(resposta, "PERGUNTA:%s", raiz->texto);
         return;
-    }// verifica se o usuário não fez nenhuma ação ele faz a pergunta da raiz "é Feminino ?"
+    }
 
     No* atual = raiz;
     int len = strlen(caminho_usuario);
     
-    resetar_catalogo();// Transforma todos os elementos da lista em ativos novamente =1 
+    resetar_catalogo(); 
 
-    // Laço de repetição que vai parar quando o usuário chegar na resposta
     for (int i = 0; i < len; i++) {
-        if (strcmp(atual->texto, "FIM") == 0) break; //Verifica se o usuário chegou no nó folha
+        if (strcmp(atual->texto, "FIM") == 0) break;
 
         if (caminho_usuario[i] == '1') {
             aplicar_filtro(atual->tipo_filtro, atual->valor_filtro);
             if (atual->sim) atual = atual->sim;
-        } // Verifica se o usuário escolheu SIM(1) e aplica o filtro e apaga o que não for da condição, depois move-se para a próxima sub-árvore "SIM"
-        else {
+        } else {
             // Lógica do NÃO
             if (strcmp(atual->tipo_filtro, "GENERO") == 0) aplicar_filtro("GENERO", "M");
             else if (strcmp(atual->tipo_filtro, "ORCAMENTO") == 0) aplicar_filtro("ORCAMENTO", "menor que 200");
             
             if (atual->nao) atual = atual->nao;
         }
-    }// Verifica se o filtro for GENERO OU ORCAMENTO, Ele remove da lista tudo que não for do genero masculino ou o orçamento maior que 200 (outros filtros ele somente vai passar para frente) e vai para a sub-árvore do não
+    }
 
     if (strcmp(atual->texto, "FIM") == 0 || (atual->sim == NULL && atual->nao == NULL)) {
         char buffer_lista[MAX_RESP] = "";
@@ -260,22 +250,22 @@ void interagir_arvore(char* caminho_usuario, char* resposta) {
         for(int i=0; i < total_perfumes; i++) {
             if (catalogo[i].ativo == 1) {
                 char item[300];
-                sprintf(item, "• %s - %s|| %s \n", catalogo[i].nome, catalogo[i].preco, catalogo[i].link);
+                sprintf(item, "%s - R$ %s|| %s \n", catalogo[i].nome, catalogo[i].preco, catalogo[i].link);
                 if (strlen(buffer_lista) + strlen(item) < MAX_RESP - 100) {
                     strcat(buffer_lista, item);
                     cont++;
                 }
             }
-        }// Verifica se o Nó atual for FIM ele mostra uma mensagem com as informações do item se tiver item na lista
+        }
 
-        if (cont == 0) sprintf(resposta, "RESULTADO:Nenhum perfume encontrado.");// Se a variável cont =0 significa que não encontrou nenhum perfume com aqueles filtros combinados
+        if (cont == 0) sprintf(resposta, "RESULTADO:Nenhum perfume encontrado com estes filtros.");
         else {
             char final[MAX_RESP + 100];
             sprintf(final, "RESULTADO:Encontramos %d opcoes:\n%s", cont, buffer_lista);
             strcpy(resposta, final);
-        }// se Cont diferente de 0 retorna a resposta final
+        }
 
     } else {
         sprintf(resposta, "PERGUNTA:%s", atual->texto);
-    }// Se não for é pergunta
+    }
 }
